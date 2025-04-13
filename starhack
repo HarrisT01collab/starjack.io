@@ -1,1 +1,383 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>StarJack.io Prototype</title>
+
+    <style>
+
+        body {
+
+            margin: 0;
+
+            overflow: hidden;
+
+            background: #222;
+
+        }
+
+        canvas {
+
+            display: block;
+
+            background: radial-gradient(circle, #111, #333);
+
+        }
+
+        #troopSlider {
+
+            position: absolute;
+
+            top: 20px;
+
+            left: 20px;
+
+            width: 150px;
+
+        }
+
+        #troopPercentage {
+
+            position: absolute;
+
+            top: 50px;
+
+            left: 20px;
+
+            color: white;
+
+            font-family: Arial, sans-serif;
+
+        }
+
+        .planet {
+
+            border-radius: 50%;
+
+            position: absolute;
+
+            text-align: center;
+
+            font-size: 12px;
+
+            font-weight: bold;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: center;
+
+        }
+
+        .planet.selected {
+
+            box-shadow: 0 0 20px 5px rgba(255, 255, 255, 0.7);
+
+            transform: scale(1.1);
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+
+<canvas id="gameCanvas"></canvas>
+
+<input type="range" id="troopSlider" min="10" max="100" value="50" />
+
+<p id="troopPercentage">50%</p>
+
+
+<script>
+
+    const canvas = document.getElementById('gameCanvas');
+
+    const ctx = canvas.getContext('2d');
+
+    const troopSlider = document.getElementById('troopSlider');
+
+    const troopPercentage = document.getElementById('troopPercentage');
+
+
+    let mapWidth = 1600, mapHeight = 1200;
+
+    let zoom = 1;
+
+    let planets = [];
+
+    let selectedPlanets = [];
+
+    let enemyPlanets = [];
+
+    let neutralPlanets = [];
+
+    let playerPlanet = null;
+
+    let playerTroops = 0;
+
+
+    canvas.width = mapWidth;
+
+    canvas.height = mapHeight;
+
+
+    class Planet {
+
+        constructor(x, y, size, isNeutral = false, isEnemy = false) {
+
+            this.x = x;
+
+            this.y = y;
+
+            this.size = size;
+
+            this.isNeutral = isNeutral;
+
+            this.isEnemy = isEnemy;
+
+            this.troops = size * 5; // Initial troops based on size
+
+            this.maxTroops = size * 10; // Max troops limit for neutral planets
+
+            this.owner = isNeutral ? 'neutral' : 'player';
+
+            this.color = this.isEnemy ? '#FF6347' : (this.isNeutral ? '#FFD700' : '#32CD32');
+
+            this.isSelected = false;
+
+            this.speed = 0.5;
+
+        }
+
+
+        draw() {
+
+            ctx.beginPath();
+
+            ctx.arc(this.x * zoom, this.y * zoom, this.size * zoom, 0, Math.PI * 2);
+
+            ctx.fillStyle = this.color;
+
+            ctx.fill();
+
+
+            if (this.isSelected) {
+
+                ctx.lineWidth = 4;
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+
+                ctx.stroke();
+
+                ctx.lineWidth = 1;
+
+            }
+
+
+            ctx.fillStyle = 'white';
+
+            ctx.fillText(this.troops, this.x * zoom, this.y * zoom);
+
+        }
+
+
+        updateTroops() {
+
+            if (this.owner === 'player') {
+
+                if (this.troops < this.maxTroops) {
+
+                    this.troops += 0.1; // Regenerate troops
+
+                }
+
+            } else if (this.owner === 'neutral') {
+
+                if (this.troops < this.maxTroops) {
+
+                    this.troops += 0.05; // Slower regeneration for neutral planets
+
+                }
+
+            }
+
+        }
+
+
+        attack(targetPlanet) {
+
+            let damage = this.troops * 0.2; // Damage done based on troops
+
+            if (targetPlanet.owner === 'enemy') {
+
+                targetPlanet.troops -= damage;
+
+                if (targetPlanet.troops <= 0) {
+
+                    targetPlanet.owner = 'player';
+
+                    targetPlanet.color = '#32CD32';
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+    // Add new planets to the game
+
+    function addPlanet(x, y, size, isNeutral = false, isEnemy = false) {
+
+        const planet = new Planet(x, y, size, isNeutral, isEnemy);
+
+        planets.push(planet);
+
+        if (isNeutral) neutralPlanets.push(planet);
+
+        if (isEnemy) enemyPlanets.push(planet);
+
+        else playerPlanet = planet; // First planet is always the player's
+
+    }
+
+
+    // Create a larger map and more planets
+
+    function generatePlanets() {
+
+        for (let i = 0; i < 40; i++) {
+
+            let x = Math.random() * mapWidth;
+
+            let y = Math.random() * mapHeight;
+
+            let size = Math.random() * 30 + 10; // Random size between 10 and 40
+
+            let isEnemy = i < 10;
+
+            let isNeutral = !isEnemy && i > 10 && i < 30;
+
+
+            addPlanet(x, y, size, isNeutral, isEnemy);
+
+        }
+
+    }
+
+
+    // Render the game state
+
+    function render() {
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+
+        planets.forEach(planet => {
+
+            planet.updateTroops();
+
+            planet.draw();
+
+        });
+
+
+        // Display selected troop percentage
+
+        troopPercentage.textContent = `${troopSlider.value}%`;
+
+
+        requestAnimationFrame(render);
+
+    }
+
+
+    // Handle planet selection and troop sending
+
+    canvas.addEventListener('click', (e) => {
+
+        let mouseX = e.clientX / zoom;
+
+        let mouseY = e.clientY / zoom;
+
+
+        planets.forEach(planet => {
+
+            let distance = Math.sqrt(Math.pow(mouseX - planet.x, 2) + Math.pow(mouseY - planet.y, 2));
+
+            if (distance < planet.size) {
+
+                planet.isSelected = true;
+
+                selectedPlanets.push(planet);
+
+            } else {
+
+                planet.isSelected = false;
+
+            }
+
+        });
+
+    });
+
+
+    // Handle troop movement
+
+    troopSlider.addEventListener('input', (e) => {
+
+        let percentage = e.target.value;
+
+        selectedPlanets.forEach(planet => {
+
+            let sendTroops = (planet.troops * (percentage / 100));
+
+            let targetPlanet = getTargetPlanet();
+
+            if (targetPlanet) {
+
+                planet.troops -= sendTroops;
+
+                targetPlanet.troops += sendTroops;
+
+            }
+
+        });
+
+    });
+
+
+    // Get target planet to send troops
+
+    function getTargetPlanet() {
+
+        return planets.find(planet => planet.isSelected && planet.owner === 'enemy');
+
+    }
+
+
+    generatePlanets();
+
+    render();
+
+
+</script>
+
+
+</body>
+
+</html>
+
 
